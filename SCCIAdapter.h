@@ -69,7 +69,7 @@ private:
   void OSCamCheck();
 
 public:
-  SCCIAdapter(cDevice *Device, int CardIndex, int cafd, bool SoftCSA, bool FullTS);
+  SCCIAdapter(cDevice *Device, int Adapter, int Frontend, int CardIndex, int cafd, bool SoftCSA, bool FullTS);
   ~SCCIAdapter();
   int Adapter()
   {
@@ -88,6 +88,18 @@ public:
   bool DeCSASetCaDescr(ca_descr_t *ca_descr);
   bool DeCSASetCaPid(ca_pid_t *ca_pid);
   void ProcessSIDRequest(int card_index, int sid, int ca_lm, const unsigned char *vdr_caPMT, int vdr_caPMTLen);
+
+// BEGIN vdr-plugin-dynamite
+private:
+  int adapter, frontend;
+  bool idle;
+
+  bool OpenCa(void);
+  void CloseCa(void);
+public:
+  virtual bool SetIdle(bool Idle, bool TestOnly);
+  virtual bool IsIdle(void) const { return idle; }
+// END vdr-plugin-dynamite
 };
 
 #endif // ___SCCIADAPTER_H

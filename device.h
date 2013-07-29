@@ -50,6 +50,20 @@ public:
   static bool ForceBudget(int n);
   static void DvbName(const char *Name, int a, int f, char *buffer, int len);
   static int DvbOpen(const char *Name, int a, int f, int Mode, bool ReportError = false);
+// BEGIN vdr-plugin-dynamite
+// dynamite fills the vdr::cDevice::device array with vdr::plugin::dynamite::cDynamicDevice
+// we have to maintain our own list of sc-devices
+private:
+  static int numScDevices;
+  static cDevice *scdevice[MAXDEVICES];
+  static bool autoLateInit;
+public:
+  static int NumScDevices(void);
+  static cDevice *GetScDevice(int CardIndex);
+  static void AddScDevice(cDevice *Device);
+  static void DelScDevice(cDevice *Device);
+  static bool AutoLateInit() { return autoLateInit; };
+// END vdr-plugin-dynamite
 };
 
 #endif // ___DEVICE_H

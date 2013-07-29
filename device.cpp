@@ -61,6 +61,58 @@ bool cScDvbDevicePlugin::EarlyShutdown(cDevice *dev)
 
 int cScDevices::budget = 0;
 
+// BEGIN vdr-plugin-dynamite
+// dynamite fills the vdr::cDevice::device array with vdr::plugin::dynamite::cDynamicDevice
+// we have to maintain our own list of sc-devices
+int cScDevices::numScDevices = 0;
+cDevice *cScDevices::scdevice[MAXDEVICES] = { NULL };
+bool cScDevices::autoLateInit = false;
+
+int cScDevices::NumScDevices(void)
+{
+  return numScDevices;
+}
+
+cDevice *cScDevices::GetScDevice(int CardIndex)
+{
+  for (int n = 0; n < numScDevices; n++) {
+      if (scdevice[n] && (scdevice[n]->CardIndex() == CardIndex))
+         return scdevice[n];
+      }
+  return NULL;
+}
+
+void cScDevices::AddScDevice(cDevice *Device)
+{
+  if (Device == NULL)
+     return;
+  int i = 0;
+  while ((i < numScDevices) && (i < MAXDEVICES) && (scdevice[i] != Device))
+        i++;
+  if (i < MAXDEVICES) {
+     scdevice[i] = Device;
+     if (i == numScDevices)
+        numScDevices++;
+     }
+  else
+     esyslog("too many sc-devices!");
+}
+
+void cScDevices::DelScDevice(cDevice *Device)
+{
+  if (Device == NULL)
+     return;
+  int i = 0;
+  while ((i < numScDevices) && (i < MAXDEVICES)) {
+        if (scdevice[i] == Device) {
+           scdevice[i] = NULL;
+           break;
+           }
+        i++;
+        }
+}
+// END vdr-plugin-dynamite
+
 void cScDevices::DvbName(const char *Name, int a, int f, char *buffer, int len)
 {
   snprintf(buffer, len, "%s/%s%d/%s%d", DEV_DVB_BASE, DEV_DVB_ADAPTER, a, Name, f);
@@ -95,20 +147,25 @@ bool cScDevices::Initialize(void)
 
 void cScDevices::Startup(void)
 {
-  for (int n = cDevice::NumDevices(); --n >= 0;)
+// BEGIN vdr-plugin-dynamite
+  for(int n = NumScDevices(); --n >= 0;)
   {
-    cDevice *dev = cDevice::GetDevice(n);
+    cDevice *dev = GetScDevice(n);
     for (cScDevicePlugin *dp = devplugins.First(); dp; dp = devplugins.Next(dp))
       if (dp->LateInit(dev))
         break;
   }
+  autoLateInit = true;
+// END vdr-plugin-dynamite
 }
 
 void cScDevices::Shutdown(void)
 {
-  for (int n = cDevice::NumDevices(); --n >= 0;)
+// BEGIN vdr-plugin-dynamite
+  for(int n = NumScDevices(); --n >= 0;)
   {
-    cDevice *dev = cDevice::GetDevice(n);
+    cDevice *dev = GetScDevice(n);
+// END vdr-plugin-dynamite
     for (cScDevicePlugin *dp = devplugins.First(); dp; dp = devplugins.Next(dp))
       if (dp->EarlyShutdown(dev))
         break;

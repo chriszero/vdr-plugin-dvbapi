@@ -50,6 +50,14 @@ public:
   void LateInit(void);
   void EarlyShutdown(void);
   bool CheckFullTs(void);
+// BEGIN vdr-plugin-dynamite
+private:
+  bool lateInit;
+public:
+#ifdef __DYNAMIC_DEVICE_PROBE
+  virtual bool SetIdleDevice(bool Idle, bool TestOnly);
+#endif
+// END vdr-plugin-dynamite
 };
 
 SCDEVICE::SCDEVICE(cScDevicePlugin *DevPlugin, int Adapter, int Frontend, int cafd)
@@ -59,6 +67,9 @@ SCDEVICE::SCDEVICE(cScDevicePlugin *DevPlugin, int Adapter, int Frontend, int ca
  : DVBDEVICE(Adapter, Frontend)
 #endif //OWN_DEVPARAMS
 {
+// BEGIN vdr-plugin-dynamite
+  lateInit = false;
+// END vdr-plugin-dynamite
   DEBUGLOG("%s: adapter=%d frontend=%d", __FUNCTION__, Adapter, Frontend);
   snprintf(devId, sizeof(devId), "%d/%d", Adapter, Frontend);
 
@@ -90,13 +101,26 @@ SCDEVICE::SCDEVICE(cScDevicePlugin *DevPlugin, int Adapter, int Frontend, int ca
     else
       INFOLOG("Using software decryption on card %s", devId);
   }
-
-  sCCIAdapter = new SCCIAdapter(this, Adapter, cafd, softcsa, fullts);
+// BEGIN vdr-plugin-dynamite
+#ifdef __DYNAMIC_DEVICE_PROBE
+  cDevice *cidev = parentDevice ? parentDevice : this;
+#else
+  cDevice *cidev = this;
+#endif
+  sCCIAdapter = new SCCIAdapter(cidev, Adapter, Frontend, Adapter, cafd, softcsa, fullts);
   DEBUGLOG("%s: done", __FUNCTION__);
+// BEGIN vdr-plugin-dynamite
+  cScDevices::AddScDevice(this);
+  if (cScDevices::AutoLateInit())
+     LateInit();
+// END vdr-plugin-dynamite
 }
 
 SCDEVICE::~SCDEVICE()
 {
+// BEGIN vdr-plugin-dynamite
+  cScDevices::DelScDevice(this);
+// END vdr-plugin-dynamite
   DEBUGLOG("%s", __FUNCTION__);
   DetachAllReceivers();
   Cancel(3);
@@ -128,6 +152,9 @@ bool SCDEVICE::CheckFullTs(void)
 
 void SCDEVICE::LateInit(void)
 {
+  if (lateInit)
+     return;
+  lateInit = true;
   DEBUGLOG("%s", __FUNCTION__);
   if (DeviceNumber() != CardIndex())
     ERRORLOG("CardIndex - DeviceNumber mismatch! Put DVBAPI plugin first on VDR commandline!");
@@ -213,6 +240,27 @@ bool SCDEVICE::GetTSPacket(uchar *&Data)
   }
   return false;
 }
+
+// BEGIN vdr-plugin-dynamite
+#ifdef __DYNAMIC_DEVICE_PROBE
+bool SCDEVICE::SetIdleDevice(bool Idle, bool TestOnly)
+{
+  if (TestOnly) {
+     if (sCCIAdapter)
+        return sCCIAdapter->SetIdle(Idle, true);
+     return DVBDEVICE::SetIdleDevice(Idle, true);
+     }
+  if (sCCIAdapter && !sCCIAdapter->SetIdle(Idle, false))
+     return false;
+  if (!DVBDEVICE::SetIdleDevice(Idle, false)) {
+     if (sCCIAdapter)
+        sCCIAdapter->SetIdle(!Idle, false);
+     return false;
+     }
+  return true;
+}
+#endif
+// END vdr-plugin-dynamite
 
 #undef SCDEVICE
 #undef DVBDEVICE

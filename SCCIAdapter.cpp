@@ -40,7 +40,7 @@
 #define T_RCV          0x81
 #define T_DATA_LAST    0xA0
 
-SCCIAdapter::SCCIAdapter(cDevice *Device, int cardIndex, int cafd, bool SoftCSA, bool FullTS)
+SCCIAdapter::SCCIAdapter(cDevice *Device, int Adapter, int Frontend, int cardIndex, int cafd, bool SoftCSA, bool FullTS)
 {
   for (int i = 0; i < MAX_SOCKETS; i++)
   {
@@ -54,6 +54,11 @@ SCCIAdapter::SCCIAdapter(cDevice *Device, int cardIndex, int cafd, bool SoftCSA,
   fd_ca = cafd;
   softcsa = SoftCSA;
   fullts = FullTS;
+// BEGIN vdr-plugin-dynamite
+  idle = false;
+  adapter = Adapter;
+  frontend = Frontend;
+// END vdr-plugin-dynamite
 
   decsa = softcsa ? new DeCSA(cardIndex) : 0;
   UDPSocket::bindx(this);
@@ -290,6 +295,9 @@ SCCIAdapter::~SCCIAdapter()
   if (capmt != 0)
     delete capmt;
   capmt = 0;
+// BEGIN vdr-plugin-dynamite
+  CloseCa();
+// END vdr-plugin-dynamite
 }
 
 bool SCCIAdapter::Reset(int Slot)
@@ -442,3 +450,37 @@ bool SCCIAdapter::DeCSASetCaPid(ca_pid_t *ca_pid)
   }
   return decsa->SetCaPid(ca_pid);
 }
+
+// BEGIN vdr-plugin-dynamite
+bool SCCIAdapter::OpenCa(void)
+{
+  if (fd_ca >= 0)
+     return true;
+  cMutexLock lock(&cafdMutex);
+  fd_ca = cDvbDevice::DvbOpen(DEV_DVB_CA, adapter, frontend, O_RDWR);
+  return (fd_ca >= 0);
+}
+
+void SCCIAdapter::CloseCa(void)
+{
+  if (fd_ca < 0)
+     return;
+  cMutexLock lock(&cafdMutex);
+  close(fd_ca);
+  fd_ca = -1;
+}
+
+bool SCCIAdapter::SetIdle(bool Idle, bool TestOnly)
+{
+  if ((adapter < 0) || (frontend < 0))
+     return false;
+  if (TestOnly || (idle == Idle))
+     return true;
+  if (Idle)
+     CloseCa();
+  else
+     OpenCa();
+  idle = Idle;
+  return true;
+}
+// END vdr-plugin-dynamite
